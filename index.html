@@ -1,0 +1,189 @@
+<!-- Licensed under a BSD license. See license.html for license -->
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="webgl-utils.js"></script>
+    <script src="matrixgl.js"></script>
+    <script src="script.js"></script>
+    <script src="jquery-2.1.3.js"></script>
+
+    <script>
+        "use strict";
+
+        window.onload = main;
+
+        var gl;
+
+
+        function main() {
+            // Get A WebGL context
+            var canvas = document.getElementById("canvas");
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            function initGl() {
+                var gl = getWebGLContext(canvas, {antialias: true, preserveDrawingBuffer: true});
+                if (!gl) {
+                }
+                gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+                gl.enable(gl.BLEND);
+                gl.disable(gl.DEPTH_TEST);
+                gl.depthFunc(gl.LESS);
+
+                return gl;
+            }
+
+            function initVertexBuffer(gl) {
+                var buffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+                gl.enableVertexAttribArray(pointer.position);
+                gl.vertexAttribPointer(pointer.position, 2, gl.FLOAT, false, 0, 0);
+            }
+
+            function setResolution(gl, pointer) {
+                gl.uniform2f(pointer.resolution, canvas.width, canvas.height);
+                gl.uniform2f(pointer.translation, canvas.width / 2, canvas.height / 2);
+            }
+
+            function getVariablePointers(gl) {
+                return {
+                    position: gl.getAttribLocation(program, "a_position"),
+                    resolution: gl.getUniformLocation(program, "u_resolution"),
+                    translation: gl.getUniformLocation(program, "u_translation"),
+                    color: gl.getUniformLocation(program, "u_color")
+                };
+            }
+
+            function initProgram(gl) {
+                var program = createProgramFromScripts(gl, ["2d-vertex-shader", "2d-fragment-shader"]);
+                gl.useProgram(program);
+                return program;
+            }
+
+            function drawObstacles(obstacles) {
+                if (mouseDown) {
+                    gl.uniform4f(pointer.color, 0.4, 0.4, 0.4, 1);
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(obstacles[obstacles.length - 1]), gl.STATIC_DRAW);
+                    gl.drawArrays(gl.LINES, 0, 2);
+                }
+            }
+
+            function clear(gl) {
+                gl.clearColor(0.0, 0.0, 0.0, 1.0);                      // Set clear color to black, fully opaque
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            }
+
+            var gl = initGl();
+            var program = initProgram(gl);
+            var pointer = getVariablePointers(gl);
+            setResolution(gl, pointer);
+
+
+            var mouseDown = false;
+            $(canvas).mousedown(function (a) {
+                mouseDown = true;
+                obstacles.push([a.offsetX - canvas.width / 2, a.offsetY - canvas.height / 2, a.offsetX - canvas.width / 2, a.offsetY - canvas.height / 2]);
+                clear(gl)
+                drawObstacles(obstacles)
+            })
+
+            $(canvas).mouseup(function (a) {
+                mouseDown = false;
+                obstacles[obstacles.length - 1][2] = a.offsetX - canvas.width / 2;
+                obstacles[obstacles.length - 1][3] = a.offsetY - canvas.height / 2;
+                clear(gl)
+                drawObstacles(obstacles)
+            })
+
+            $(canvas).mousemove(function (a) {
+                if (mouseDown) {
+                    obstacles[obstacles.length - 1][2] = a.offsetX - canvas.width / 2;
+                    obstacles[obstacles.length - 1][3] = a.offsetY - canvas.height / 2;
+                    clear(gl)
+                    drawObstacles(obstacles)
+                }
+            })
+
+            initVertexBuffer(gl);
+            clear(gl);
+
+
+            var obstacles = []
+
+            drawObstacles(obstacles);
+
+            function drawRays() {
+                gl.uniform4f(pointer.color, 0.4, 1.0, 1.0, 0.003);
+                for (var i = 0; i < 100; i++) {
+                    var angleInDegrees = 360 - randomInt(360);
+                    var angleInRadians = angleInDegrees * Math.PI / 180;
+
+
+                    var a = rotate([0, 0, 10000, 10000], [Math.sin(angleInRadians), Math.cos(angleInRadians)])
+
+
+                    var lines = flat(trace(a, obstacles, 0));
+
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lines), gl.STATIC_DRAW);
+
+                    // Draw the rectangle.
+                    gl.drawArrays(gl.LINES, 0, lines.length / 2);
+
+                }
+            }
+
+
+            var tick = function () {
+                requestAnimFrame(tick);
+                drawRays();
+            }
+            tick();
+        }
+
+        // Returns a random integer from 0 to range - 1.
+        function randomInt(range) {
+            return Math.random() * range;
+        }
+
+
+    </script>
+    <!-- vertex shader -->
+    <script id="2d-vertex-shader" type="x-shader/x-vertex">
+attribute vec2 a_position;
+
+uniform vec2 u_resolution;
+uniform vec2 u_translation;
+
+void main() {
+
+  vec2 position = a_position + u_translation;
+
+   vec2 zeroToOne = position / u_resolution;
+   vec2 zeroToTwo = zeroToOne * 2.0;
+   vec2 clipSpace = zeroToTwo - 1.0;
+   gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+}
+
+
+    </script>
+    <!-- fragment shader -->
+    <script id="2d-fragment-shader" type="x-shader/x-fragment">
+precision highp float;
+
+uniform vec4 u_color;
+
+void main() {
+   gl_FragColor = u_color;
+}
+
+
+
+    </script>
+</head>
+
+<body style="margin:0px">
+<canvas id="canvas" style="display: block"></canvas>
+</body>
+</html>
+
+
